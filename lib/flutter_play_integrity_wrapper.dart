@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
 
 /// details about an error during the integrity token request.
 class PlayIntegrityException implements Exception {
@@ -16,12 +16,27 @@ class PlayIntegrityException implements Exception {
   });
 
   @override
-  String toString() => 'PlayIntegrityException(code: $code, message: $message, details: $details)';
+  String toString() =>
+      'PlayIntegrityException(code: $code, message: $message, details: $details)';
 }
 
 class FlutterPlayIntegrityWrapper {
   // Must match the channel name in Kotlin
-  static const MethodChannel _channel = MethodChannel('flutter_play_integrity_wrapper');
+  static const MethodChannel _channel =
+  MethodChannel('flutter_play_integrity_wrapper');
+
+  // Instance Dio untuk verifikasi on-device
+  final Dio _dio;
+
+  /// Constructor dengan opsi injeksi Dio.
+  /// Kalau tidak di-inject, akan membuat instance Dio baru dengan timeout default.
+  FlutterPlayIntegrityWrapper({Dio? dio})
+      : _dio = dio ??
+      Dio(BaseOptions(
+        connectTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 30),
+        sendTimeout: const Duration(seconds: 30),
+      ));
 
   /// Requests an integrity token from Google Play.
   ///
@@ -42,7 +57,8 @@ class FlutterPlayIntegrityWrapper {
 
     try {
       // 2. Call the native platform
-      final String? token = await _channel.invokeMethod('requestIntegrityToken', {
+      final String? token =
+      await _channel.invokeMethod('requestIntegrityToken', {
         'nonce': finalNonce,
         'cloudProjectNumber': cloudProjectNumber,
       });
@@ -79,26 +95,38 @@ class FlutterPlayIntegrityWrapper {
     required String packageName,
     required String apiKey,
   }) async {
-    final uri = Uri.parse(
-      'https://playintegrity.googleapis.com/v1/$packageName:decodeIntegrityToken?key=$apiKey',
-    );
+    final url =
+        'https://playintegrity.googleapis.com/v1/$packageName:decodeIntegrityToken';
 
     try {
-      final response = await http.post(
-        uri,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'integrityToken': token}),
+      final response = await _dio.post(
+        url,
+        queryParameters: {'key': apiKey},
+        data: jsonEncode({'integrityToken': token}),
+        options: Options(
+          contentType: Headers.jsonContentType,
+          validateStatus: (status) => status != null && status < 500,
+        ),
       );
 
       if (response.statusCode == 200) {
-        return jsonDecode(response.body) as Map<String, dynamic>;
+        final data = response.data;
+        return data is Map<String, dynamic>
+            ? data
+            : jsonDecode(data.toString()) as Map<String, dynamic>;
       } else {
         throw PlayIntegrityException(
           code: 'VERIFICATION_FAILED',
           message: 'Google API returned ${response.statusCode}',
-          details: response.body,
+          details: response.data?.toString(),
         );
       }
+    } on DioException catch (e) {
+      throw PlayIntegrityException(
+        code: 'NETWORK_ERROR',
+        message: 'Failed to connect to Google Verification API',
+        details: '${e.type}: ${e.message}',
+      );
     } catch (e) {
       if (e is PlayIntegrityException) rethrow;
       throw PlayIntegrityException(
