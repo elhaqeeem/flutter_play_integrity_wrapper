@@ -1,8 +1,9 @@
 name: flutter_play_integrity_wrapper
 description: A Flutter wrapper for the Google Play Integrity API on Android.
 version: 0.0.2
-repository: https://github.com/ArdaKoksall/flutter_play_integrity_wrapper
-homepage: https://github.com/ArdaKoksall/flutter_play_integrity_wrapper
+repository: https://github.com/elhaqeeem/flutter_play_integrity_wrapper
+homepage: https://github.com/elhaqeeem/flutter_play_integrity_wrapper
+issue_tracker: https://github.com/elhaqeeem/flutter_play_integrity_wrapper/issues
 
 environment:
   sdk: ^3.10.7
@@ -11,7 +12,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  http: ^1.6.0
+  dio: ^5.7.0        # ← diganti dari http
 
 dev_dependencies:
   flutter_test:
@@ -24,4 +25,3 @@ flutter:
       android:
         package: com.example.flutter_play_integrity_wrapper
         pluginClass: FlutterPlayIntegrityWrapperPlugin
-
